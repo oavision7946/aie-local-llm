@@ -1,0 +1,106 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.25.1
+    profiles: ["vllm"]
+    command: ["${VLLM_MODEL:-Qwen/Qwen2.5-3B-Instruct}", "--dtype", "bfloat16", "--max-model-len", "4096", "--gpu-memory-utilization", "0.85"]
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    volumes:
+      - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  vllm-lmcache:
+    image: lmcache-vllm:spark
+    profiles: ["vllm-lmcache"]
+    entrypoint: ["vllm"]
+    command:
+      - "serve"
+      - "${VLLM_MODEL:-Qwen/Qwen2.5-3B-Instruct}"
+      - "--dtype"
+      - "bfloat16"
+      - "--max-model-len"
+      - "4096"
+      - "--gpu-memory-utilization"
+      - "0.85"
+      - "--kv-transfer-config"
+      - '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - LMCACHE_CHUNK_SIZE=256
+      - LMCACHE_LOCAL_CPU=True
+      - LMCACHE_MAX_LOCAL_CPU_SIZE=20
+    ports:
+      - "${VLLM_LMCACHE_PORT:-8001}:8000"
+    volumes:
+      - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  sglang:
+    image: lmsysorg/sglang:latest
+    profiles: ["sglang"]
+    command:
+      - "python3"
+      - "-m"
+      - "sglang.launch_server"
+      - "--model-path"
+      - "${SGLANG_MODEL:-Qwen/Qwen2.5-3B-Instruct}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "30000"
+      - "--dtype"
+      - "bfloat16"
+      - "--context-length"
+      - "4096"
+      - "--attention-backend"
+      - "flashinfer"
+      - "--mem-fraction-static"
+      - "0.75"
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    ports:
+      - "${SGLANG_PORT:-30000}:30000"
+    volumes:
+      - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:30000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s

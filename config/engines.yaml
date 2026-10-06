@@ -1,0 +1,22 @@
+active: vllm
+
+engines:
+  - name: vllm
+    base_url: http://127.0.0.1:8000/v1
+    model: Qwen/Qwen3.5-9B
+    enabled: true
+
+  - name: vllm
+    base_url: http://127.0.0.1:8000/v1
+    model: Qwen/Qwen2.5-3B-Instruct
+    enabled: false
+
+  - name: vllm_lmcache
+    base_url: http://127.0.0.1:8001/v1
+    model: Qwen/Qwen2.5-3B-Instruct
+    enabled: false
+
+  - name: sglang
+    base_url: http://127.0.0.1:30000/v1
+    model: Qwen/Qwen2.5-3B-Instruct
+    enabled: false
