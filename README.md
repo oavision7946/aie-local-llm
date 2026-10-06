@@ -1,4 +1,4 @@
-# aie-local-llm
+# AI Engineering - Running Local Model on NVIDIA DGX Spark
 
 A local-model question-answering and RAG gateway for this DGX Spark. It runs inference via **vLLM**,
 **SGLang**, or **LMCache**-accelerated vLLM (each in its own Docker container, exposing an
