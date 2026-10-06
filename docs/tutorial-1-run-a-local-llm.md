@@ -102,15 +102,21 @@ curl -X POST http://localhost:9000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen3.5-9B",
-    "messages": [{"role": "user", "content": "What is 12*17?"}],
+    "messages": [{"role": "user", "content": "What is 12*17? Answer with just the number, no explanation."}],
     "max_tokens": 50,
     "temperature": 0
   }'
 ```
 
-If you launched without `--default-chat-template-kwargs '{"enable_thinking":false}'`, the model will
-think first — raise `max_tokens` (e.g. to 1000+) or the response will get cut off mid-thought before it
-reaches a final answer.
+This should return `"204"` in well under a second, with `"finish_reason": "stop"`.
+
+> **Note:** `enable_thinking: false` only suppresses the `<think>...</think>` chain-of-thought block — it
+> doesn't stop the model from being conversationally verbose. Drop the "answer with just the number"
+> instruction and ask plainly `"What is 12*17?"`, and Qwen3.5-9B will still walk through the arithmetic
+> step by step in its final answer (that's normal model behavior, not a thinking leak — there's still no
+> `<think>` tag in it). With only `max_tokens: 50` that walkthrough gets cut off mid-explanation
+> (`"finish_reason": "length"`); either raise `max_tokens` to ~200 to let it finish, or do what we did
+> above and ask for a direct answer in the prompt.
 
 Or point any OpenAI-client-compatible application at `http://<this-host>:9000/v1` — this is the whole
 point of the gateway being OpenAI-compatible.
@@ -142,6 +148,7 @@ bash docker/stop.sh
 | `docker logs` shows "sending unauthenticated requests to the HF Hub" | `HF_TOKEN` wasn't set before launching | `export HF_TOKEN=hf_xxx`, then `bash docker/stop.sh` and relaunch |
 | Answer is slow and full of `<think>...</think>` reasoning text | Qwen3.5-9B reasons by default | Relaunch with `--default-chat-template-kwargs '{"enable_thinking":false}'` (step 1) |
 | Answer is truncated or ends with garbled text (e.g. a stray `cw` near `</think>`) | vLLM was launched without `--reasoning-parser qwen3`, so it can't correctly split thinking from the final answer | Relaunch with `VLLM_EXTRA_ARGS` including `--reasoning-parser qwen3` (step 1) |
+| `"finish_reason": "length"` and the answer stops mid-sentence, but there's no `<think>` tag anywhere | Thinking is correctly disabled, but Qwen3.5-9B still explains its reasoning in the final answer and ran out of `max_tokens` | Not a thinking leak — either raise `max_tokens` (~200 for simple arithmetic) or ask for a direct answer in the prompt, as in step 4 |
 
 ## Next step
 
