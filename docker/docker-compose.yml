@@ -1,12 +1,14 @@
+# Engine profiles. Every port is published on 127.0.0.1 only: Compose creates its own network,
+# where a mapping without a host address would publish on all interfaces.
 services:
   vllm:
-    image: vllm/vllm-openai:v0.25.1
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34}
     profiles: ["vllm"]
-    command: ["${VLLM_MODEL:-Qwen/Qwen2.5-3B-Instruct}", "--dtype", "bfloat16", "--max-model-len", "4096", "--gpu-memory-utilization", "0.85"]
+    command: ["${VLLM_MODEL:-Qwen/Qwen2.5-3B-Instruct}", "--dtype", "bfloat16", "--max-model-len", "${VLLM_MAX_MODEL_LEN:-4096}", "--gpu-memory-utilization", "${VLLM_GPU_MEMORY_UTILIZATION:-0.4}"]
     environment:
-      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_TOKEN
     ports:
-      - "${VLLM_PORT:-8000}:8000"
+      - "127.0.0.1:${VLLM_PORT:-8000}:8000"
     volumes:
       - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
     ipc: host
@@ -25,7 +27,7 @@ services:
       start_period: 180s
 
   vllm-lmcache:
-    image: lmcache-vllm:spark
+    image: ${VLLM_LMCACHE_IMAGE:-vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34}  # includes LMCache
     profiles: ["vllm-lmcache"]
     entrypoint: ["vllm"]
     command:
@@ -34,18 +36,18 @@ services:
       - "--dtype"
       - "bfloat16"
       - "--max-model-len"
-      - "4096"
+      - "${VLLM_MAX_MODEL_LEN:-4096}"
       - "--gpu-memory-utilization"
-      - "0.85"
+      - "${VLLM_GPU_MEMORY_UTILIZATION:-0.4}"
       - "--kv-transfer-config"
       - '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
     environment:
-      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_TOKEN
       - LMCACHE_CHUNK_SIZE=256
       - LMCACHE_LOCAL_CPU=True
-      - LMCACHE_MAX_LOCAL_CPU_SIZE=20
+      - LMCACHE_MAX_LOCAL_CPU_SIZE=${LMCACHE_MAX_LOCAL_CPU_SIZE:-20}
     ports:
-      - "${VLLM_LMCACHE_PORT:-8001}:8000"
+      - "127.0.0.1:${VLLM_LMCACHE_PORT:-8001}:8000"
     volumes:
       - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
     ipc: host
@@ -64,7 +66,7 @@ services:
       start_period: 180s
 
   sglang:
-    image: lmsysorg/sglang:latest
+    image: ${SGLANG_IMAGE:-lmsysorg/sglang:v0.5.23@sha256:f832b5c39559c9caa900b22ad37c76fcce66470676855c42052102c537812f1f}
     profiles: ["sglang"]
     command:
       - "python3"
@@ -79,15 +81,15 @@ services:
       - "--dtype"
       - "bfloat16"
       - "--context-length"
-      - "4096"
+      - "${SGLANG_CONTEXT_LENGTH:-4096}"
       - "--attention-backend"
       - "flashinfer"
       - "--mem-fraction-static"
-      - "0.75"
+      - "${SGLANG_MEM_FRACTION_STATIC:-0.4}"
     environment:
-      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_TOKEN
     ports:
-      - "${SGLANG_PORT:-30000}:30000"
+      - "127.0.0.1:${SGLANG_PORT:-30000}:30000"
     volumes:
       - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
     ipc: host

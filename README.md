@@ -1,7 +1,7 @@
 # AI Engineering - Running Local Models on NVIDIA DGX Spark
 
 A local-model question-answering and RAG gateway for this DGX Spark. It runs inference via **vLLM**,
-**SGLang**, or **LMCache**-accelerated vLLM (each in its own Docker container, exposing an
+**SGLang**, **LMCache**-accelerated vLLM, or the **llama.cpp** server (each in its own Docker container, exposing an
 OpenAI-compatible API), adds a retrieval-augmented-generation layer on top, and re-exposes everything as
 a single OpenAI-compatible `/v1/chat/completions` endpoint — so it can be used as a drop-in local LLM
 provider for any application that already speaks the OpenAI API.
@@ -23,7 +23,7 @@ backend for that application with **no code changes on the application side**, e
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://<this-host>:9000/v1", api_key="not-needed")
+client = OpenAI(base_url="http://<this-host>:9100/v1", api_key="not-needed")
 ```
 
 RAG is opted into per-request via an extra `rag` field in the request body (ignored by plain OpenAI
@@ -39,7 +39,7 @@ clients that don't send it):
 
 ## Architecture
 
-- **Engines** (`docker/`): vLLM, SGLang, and LMCache-accelerated vLLM each run as their own Docker
+- **Engines** (`docker/`): vLLM, SGLang, LMCache-accelerated vLLM and llama.cpp each run as their own Docker
   container. This app never runs GPU inference in-process — it's purely an HTTP client to whichever
   engine is configured as `active` in `config/engines.yaml`.
 - **Gateway** (`app/`): FastAPI app. `app/services/engines/` talks to the active engine over the OpenAI
@@ -63,9 +63,10 @@ Each script pulls/launches its container and prints a readiness check. They defa
 `Qwen/Qwen2.5-3B-Instruct` model; override with `VLLM_MODEL`/`SGLANG_MODEL` env vars.
 
 ```bash
-bash docker/vllm/run.sh           # port 8000
-bash docker/vllm-lmcache/run.sh   # port 8001, uses the local lmcache-vllm:spark image
-bash docker/sglang/run.sh         # port 30000, pulls lmsysorg/sglang if not present
+bash docker/vllm/run.sh           # 127.0.0.1:8000
+bash docker/vllm-lmcache/run.sh   # 127.0.0.1:8001, vLLM with the LMCache connector
+bash docker/sglang/run.sh         # 127.0.0.1:30000
+bash docker/llamacpp/run.sh       # 127.0.0.1:8002, llama.cpp server for GGUF files
 
 bash docker/stop.sh               # stop whichever is running
 ```
@@ -79,21 +80,45 @@ cd docker && docker compose --profile vllm up
 Only one engine needs to be running at a time; set `active` in `config/engines.yaml` to match, or edit
 `base_url`/`model`/`enabled` for any entry.
 
-> **Note on this hardware:** DGX Spark's unified memory means the engine and the embedding model compete
-> for the same GPU memory pool. `config/rag.yaml`'s `embeddings.device` defaults to `cpu` for this reason
-> — flip it to `cuda` only if you've left headroom in the engine's `--gpu-memory-utilization`.
+Every image is pinned to an exact tag and digest in its script (`VLLM_IMAGE`, `SGLANG_IMAGE`,
+`LLAMACPP_IMAGE`, ...), so measurements are reproducible; override the variable to try another build.
+Ports, context length and memory settings are environment variables too; see the top of each script.
+
+### Memory settings
+
+DGX Spark's CPU and GPU share one memory pool, so `--gpu-memory-utilization` (vLLM) and
+`--mem-fraction-static` (SGLang) are fractions of the **whole machine's** memory, not of a separate GPU.
+The scripts default to `0.4`, which leaves room for other services; raise it only when nothing else needs
+the memory. llama.cpp allocates its KV cache up front from `LLAMACPP_CTX_SIZE`. Note that
+`docker stats` does not show memory a container allocates on the GPU; use `free -m` to see the real total.
+
+The same applies to embedding models: the engine and the embedder compete for the same pool.
+`config/rag.yaml`'s `embeddings.device` defaults to `cpu` for this reason. Flip it to `cuda` only if you've
+left headroom in the engine's memory fraction.
+
+### Running engines safely
+
+- Every script and Compose profile publishes its port on `127.0.0.1` only. Docker's daemon-wide default
+  bind address does not apply to the networks Compose creates, so a mapping without a host address would
+  publish on all interfaces. After starting anything, check
+  `docker ps --format '{{.Names}} {{.Ports}}'` for `0.0.0.0` or `[::]`.
+- `HF_TOKEN` is passed to containers by name (`-e HF_TOKEN`), so its value does not appear in the
+  `docker run` command line.
 
 ## Running the gateway
 
 ```bash
 uv sync
-uv run uvicorn app.main:app --port 9000
+uv run uvicorn app.main:app --port 9100
 ```
 
+Any free port works (check with `ss -ltn`); the examples use 9100 because 9000 is often taken by other
+local services (for example, ClickHouse's native protocol). uvicorn binds `127.0.0.1` by default.
+
 ```bash
-curl http://localhost:9000/health
-curl http://localhost:9000/v1/models
-curl -X POST http://localhost:9000/v1/chat/completions \
+curl http://127.0.0.1:9100/health
+curl http://127.0.0.1:9100/v1/models
+curl -X POST http://127.0.0.1:9100/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "Qwen/Qwen2.5-3B-Instruct", "messages": [{"role": "user", "content": "hi"}]}'
 ```
@@ -101,22 +126,35 @@ curl -X POST http://localhost:9000/v1/chat/completions \
 Manage documents for RAG:
 
 ```bash
-curl -X POST http://localhost:9000/documents \
+curl -X POST http://127.0.0.1:9100/documents \
   -H "Content-Type: application/json" \
   -d '{"content": "...", "corpus": "docs"}'
 
-curl http://localhost:9000/documents?corpus=docs
-curl -X DELETE http://localhost:9000/documents/<doc_id>
+curl http://127.0.0.1:9100/documents?corpus=docs
+curl -X DELETE http://127.0.0.1:9100/documents/<doc_id>
 ```
 
 ## Running the UI
 
 ```bash
 uv sync --extra ui
-uv run streamlit run ui/app.py --server.port 8502
+uv run streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8502
 ```
 
-Open `http://localhost:8502`. Point it at a different API with `API_BASE_URL=http://host:port`.
+Open `http://127.0.0.1:8502`. The UI talks to `http://127.0.0.1:9100` by default; point it at a different
+API with `API_BASE_URL=http://host:port`.
+
+## Benchmarking an engine
+
+`bench/serve_bench.py` measures any OpenAI-compatible engine: load time, decode tokens/s (one stream and
+concurrent streams), prefill throughput and time to first token for long prompts, tool calling, and
+JSON-schema structured output. Prompts are synthetic and seeded. See
+[docs/benchmarking.md](docs/benchmarking.md) for the workflow and the latest results on this machine.
+
+```bash
+uv run python bench/serve_bench.py run --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-3B-Instruct --label vllm-3b
+```
 
 ## Running the tests
 

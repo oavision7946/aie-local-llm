@@ -2,7 +2,7 @@ import os
 
 import httpx
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:9000")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:9100")
 
 
 def list_models() -> list[str]:

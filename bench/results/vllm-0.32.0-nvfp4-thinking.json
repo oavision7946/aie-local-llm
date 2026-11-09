@@ -1,0 +1,43 @@
+{
+  "label": "vllm-0.32.0-nvfp4-thinking",
+  "config": {
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "nvidia/Qwen3.8-27B-NVFP4",
+    "label": "vllm-0.32.0-nvfp4-thinking",
+    "seed": 1234,
+    "thinking": true,
+    "decode_tokens": 256,
+    "repeats": 3,
+    "concurrency": 2,
+    "prefill_lengths": [
+      8192,
+      32768
+    ],
+    "json_trials": 3,
+    "timeout_s": 1800.0
+  },
+  "started_at": "2026-11-08T15:27:25-0800",
+  "max_model_len": 262144,
+  "memory_before": {
+    "host_used_mib": 54959,
+    "host_available_mib": 69647
+  },
+  "tools": {
+    "passed": true,
+    "n_calls": 3,
+    "problems": [],
+    "latency_s": 20.79
+  },
+  "json": {
+    "passed": false,
+    "pass_rate": "2/3",
+    "problems": [
+      "Invalid JSON: EOF while parsing a string at line 15 column 13",
+      "finish_reason=length"
+    ]
+  },
+  "memory_after": {
+    "host_used_mib": 54990,
+    "host_available_mib": 69617
+  }
+}

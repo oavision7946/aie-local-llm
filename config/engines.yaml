@@ -20,3 +20,8 @@ engines:
     base_url: http://127.0.0.1:30000/v1
     model: Qwen/Qwen2.5-3B-Instruct
     enabled: false
+
+  - name: llamacpp
+    base_url: http://127.0.0.1:8002/v1
+    model: ggml-org/Qwen3.8-27B-GGUF:Qwen3.8-27B-Q8_0
+    enabled: false

@@ -1,11 +1,18 @@
 #!/bin/bash
 # Launch SGLang's OpenAI-compatible server on this DGX Spark.
-# Validated on this box against Qwen/Qwen2.5-3B-Instruct (see ~/workspace/inference/basic/).
+# The server listens on 0.0.0.0 inside the container; the host side is published on 127.0.0.1 only.
 set -euo pipefail
 
+# Pinned by digest so results are reproducible; override SGLANG_IMAGE to try another build.
+SGLANG_IMAGE=${SGLANG_IMAGE:-"lmsysorg/sglang:v0.5.23@sha256:f832b5c39559c9caa900b22ad37c76fcce66470676855c42052102c537812f1f"}
 SGLANG_MODEL=${SGLANG_MODEL:-"Qwen/Qwen2.5-3B-Instruct"}
 SGLANG_PORT=${SGLANG_PORT:-30000}
-SGLANG_IMAGE=${SGLANG_IMAGE:-"lmsysorg/sglang:latest"}
+SGLANG_CONTEXT_LENGTH=${SGLANG_CONTEXT_LENGTH:-4096}
+# Fraction of the whole unified memory pool reserved for weights plus KV cache (see the vLLM script).
+SGLANG_MEM_FRACTION_STATIC=${SGLANG_MEM_FRACTION_STATIC:-0.4}
+SGLANG_ATTENTION_BACKEND=${SGLANG_ATTENTION_BACKEND:-flashinfer}
+# Extra flags appended as-is, e.g. SGLANG_EXTRA_ARGS="--tool-call-parser qwen3_coder".
+SGLANG_EXTRA_ARGS=${SGLANG_EXTRA_ARGS:-}
 
 if [ -z "${HF_TOKEN:-}" ]; then
   echo "Warning: HF_TOKEN is not set — Hugging Face downloads will be unauthenticated" \
@@ -15,18 +22,20 @@ fi
 
 docker run -d --rm --name aie-local-llm-sglang \
   --gpus all --ipc=host \
-  -p "${SGLANG_PORT}:30000" \
+  -p "127.0.0.1:${SGLANG_PORT}:30000" \
   -v "${HOME}/.cache/huggingface:/root/.cache/huggingface" \
-  -e HF_TOKEN="${HF_TOKEN:-}" \
+  -e HF_TOKEN \
   "${SGLANG_IMAGE}" \
   python3 -m sglang.launch_server \
   --model-path "${SGLANG_MODEL}" \
   --host 0.0.0.0 \
   --port 30000 \
   --dtype bfloat16 \
-  --context-length 4096 \
-  --attention-backend flashinfer \
-  --mem-fraction-static 0.75
+  --context-length "${SGLANG_CONTEXT_LENGTH}" \
+  --attention-backend "${SGLANG_ATTENTION_BACKEND}" \
+  --mem-fraction-static "${SGLANG_MEM_FRACTION_STATIC}" \
+  ${SGLANG_EXTRA_ARGS}
 
-echo "SGLang starting on port ${SGLANG_PORT} with model ${SGLANG_MODEL}."
-echo "Check readiness with: curl http://localhost:${SGLANG_PORT}/health"
+echo "SGLang starting on 127.0.0.1:${SGLANG_PORT} with model ${SGLANG_MODEL}."
+echo "Check readiness with: curl http://127.0.0.1:${SGLANG_PORT}/health"
+docker ps --filter name=^aie-local-llm-sglang$ --format 'Published ports: {{.Ports}}'

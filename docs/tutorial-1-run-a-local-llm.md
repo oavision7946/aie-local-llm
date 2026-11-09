@@ -82,14 +82,14 @@ engines:
 
 ```bash
 uv sync
-uv run uvicorn app.main:app --port 9000
+uv run uvicorn app.main:app --port 9100
 ```
 
 ```bash
-curl http://localhost:9000/health
+curl http://127.0.0.1:9100/health
 # {"status":"ok","active_engine":"vllm","model":"Qwen/Qwen3.5-9B"}
 
-curl http://localhost:9000/v1/models
+curl http://127.0.0.1:9100/v1/models
 # {"object":"list","data":[{"id":"Qwen/Qwen3.5-9B", ...}]}
 ```
 
@@ -98,7 +98,7 @@ curl http://localhost:9000/v1/models
 With thinking disabled (step 1), this should answer directly and quickly:
 
 ```bash
-curl -X POST http://localhost:9000/v1/chat/completions \
+curl -X POST http://127.0.0.1:9100/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen3.5-9B",
@@ -118,7 +118,7 @@ This should return `"204"` in well under a second, with `"finish_reason": "stop"
 > (`"finish_reason": "length"`); either raise `max_tokens` to ~200 to let it finish, or do what we did
 > above and ask for a direct answer in the prompt.
 
-Or point any OpenAI-client-compatible application at `http://<this-host>:9000/v1` — this is the whole
+Or point any OpenAI-client-compatible application at `http://<this-host>:9100/v1` — this is the whole
 point of the gateway being OpenAI-compatible.
 
 ## 5. (Optional) try the UI

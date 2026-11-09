@@ -1,0 +1,77 @@
+{
+  "label": "llamacpp-b12199-q8_0",
+  "config": {
+    "base_url": "http://127.0.0.1:8002/v1",
+    "model": "qwen3.8-27b-q8_0",
+    "label": "llamacpp-b12199-q8_0",
+    "seed": 1234,
+    "thinking": false,
+    "decode_tokens": 256,
+    "repeats": 3,
+    "concurrency": 2,
+    "prefill_lengths": [
+      8192,
+      32768,
+      120000
+    ],
+    "json_trials": 3,
+    "timeout_s": 1800.0
+  },
+  "started_at": "2026-11-08T14:57:27-0800",
+  "max_model_len": 131072,
+  "memory_before": {
+    "host_used_mib": 45723,
+    "host_available_mib": 78884,
+    "container_mem": "2.167GiB / 121.7GiB"
+  },
+  "decode": {
+    "decode_tps_median": 8.07,
+    "ttft_s_median": 0.203,
+    "completion_tokens": [
+      256,
+      256,
+      256
+    ]
+  },
+  "concurrency": {
+    "concurrency": 2,
+    "per_stream_decode_tps_mean": 7.81,
+    "aggregate_tps": 15.5
+  },
+  "prefill": [
+    {
+      "target_tokens": 8192,
+      "prompt_tokens": 8118,
+      "ttft_s": 9.46,
+      "prefill_tps": 858.2
+    },
+    {
+      "target_tokens": 32768,
+      "prompt_tokens": 32507,
+      "ttft_s": 40.41,
+      "prefill_tps": 804.5
+    },
+    {
+      "target_tokens": 120000,
+      "prompt_tokens": 119699,
+      "ttft_s": 192.35,
+      "prefill_tps": 622.3
+    }
+  ],
+  "tools": {
+    "passed": true,
+    "n_calls": 3,
+    "problems": [],
+    "latency_s": 20.36
+  },
+  "json": {
+    "passed": true,
+    "pass_rate": "3/3",
+    "problems": []
+  },
+  "memory_after": {
+    "host_used_mib": 53666,
+    "host_available_mib": 70941,
+    "container_mem": "9.942GiB / 121.7GiB"
+  }
+}

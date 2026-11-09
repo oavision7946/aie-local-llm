@@ -110,14 +110,14 @@ The embedding model downloads in-process (not inside a Docker container), via th
 ```bash
 export HF_TOKEN=hf_xxx  # if not already set in this shell
 uv sync
-uv run uvicorn app.main:app --port 9000
-curl http://localhost:9000/health
+uv run uvicorn app.main:app --port 9100
+curl http://127.0.0.1:9100/health
 ```
 
 ## 5. Ingest a document
 
 ```bash
-curl -X POST http://localhost:9000/documents \
+curl -X POST http://127.0.0.1:9100/documents \
   -H "Content-Type: application/json" \
   -d '{
     "content": "The aie-local-llm gateway caps vLLM at 55% GPU memory utilization in this tutorial so an 8B embedding model can also run on GPU.",
@@ -137,7 +137,7 @@ If this step OOMs, lower `VLLM_GPU_MEMORY_UTILIZATION` further and relaunch vLLM
 ## 6. Ask a RAG-enabled question
 
 ```bash
-curl -X POST http://localhost:9000/v1/chat/completions \
+curl -X POST http://127.0.0.1:9100/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "nvidia/Qwen3.8-27B-NVFP4",
@@ -173,4 +173,4 @@ bash docker/stop.sh
 | CUDA OOM when the embedding model loads | GPU headroom left by vLLM is smaller than the embedder needs | Lower `VLLM_GPU_MEMORY_UTILIZATION` and relaunch vLLM, or set `embeddings.device: cpu` |
 | vLLM fails to start with an NVFP4-related error | `--quantization modelopt_fp4` missing or vLLM image predates NVFP4 support | Confirm the flag is set; check `docker logs aie-local-llm-vllm` |
 | First ingest/chat call is very slow | Expected — it's downloading and loading the 8B embedding model | Subsequent calls reuse the loaded model and are fast |
-| `/documents` or RAG-enabled chat returns empty `sources` | Query embedding didn't match any ingested chunk, or wrong `corpus` name | Confirm with `curl http://localhost:9000/documents?corpus=docs` that the chunk was actually ingested |
+| `/documents` or RAG-enabled chat returns empty `sources` | Query embedding didn't match any ingested chunk, or wrong `corpus` name | Confirm with `curl http://127.0.0.1:9100/documents?corpus=docs` that the chunk was actually ingested |

@@ -221,3 +221,5 @@ __marimo__/
 
 # Project specific
 ProjectPrompts.md
+.internal/
+CLAUDE.local.md

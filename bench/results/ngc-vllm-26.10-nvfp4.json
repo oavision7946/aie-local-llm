@@ -1,0 +1,77 @@
+{
+  "label": "ngc-vllm-26.10-nvfp4",
+  "config": {
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "nvidia/Qwen3.8-27B-NVFP4",
+    "label": "ngc-vllm-26.10-nvfp4",
+    "seed": 1234,
+    "thinking": false,
+    "decode_tokens": 256,
+    "repeats": 3,
+    "concurrency": 2,
+    "prefill_lengths": [
+      8192,
+      32768,
+      131072
+    ],
+    "json_trials": 3,
+    "timeout_s": 1800.0
+  },
+  "started_at": "2026-11-08T15:44:08-0800",
+  "max_model_len": 262144,
+  "memory_before": {
+    "host_used_mib": 52127,
+    "host_available_mib": 72480,
+    "container_mem": "8.343GiB / 121.7GiB"
+  },
+  "decode": {
+    "decode_tps_median": 12.08,
+    "ttft_s_median": 0.105,
+    "completion_tokens": [
+      256,
+      256,
+      256
+    ]
+  },
+  "concurrency": {
+    "concurrency": 2,
+    "per_stream_decode_tps_mean": 11.66,
+    "aggregate_tps": 23.2
+  },
+  "prefill": [
+    {
+      "target_tokens": 8192,
+      "prompt_tokens": 8118,
+      "ttft_s": 2.88,
+      "prefill_tps": 2814.2
+    },
+    {
+      "target_tokens": 32768,
+      "prompt_tokens": 32507,
+      "ttft_s": 14.23,
+      "prefill_tps": 2285.2
+    },
+    {
+      "target_tokens": 131072,
+      "prompt_tokens": 130741,
+      "ttft_s": 103.5,
+      "prefill_tps": 1263.2
+    }
+  ],
+  "tools": {
+    "passed": true,
+    "n_calls": 3,
+    "problems": [],
+    "latency_s": 12.51
+  },
+  "json": {
+    "passed": true,
+    "pass_rate": "3/3",
+    "problems": []
+  },
+  "memory_after": {
+    "host_used_mib": 52646,
+    "host_available_mib": 71961,
+    "container_mem": "8.534GiB / 121.7GiB"
+  }
+}
