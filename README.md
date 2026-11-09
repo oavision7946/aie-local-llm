@@ -104,6 +104,13 @@ left headroom in the engine's memory fraction.
   `docker ps --format '{{.Names}} {{.Ports}}'` for `0.0.0.0` or `[::]`.
 - `HF_TOKEN` is passed to containers by name (`-e HF_TOKEN`), so its value does not appear in the
   `docker run` command line.
+- Engines run as your user (`--user $(id -u):$(id -g)`), not root, so files they write to the shared
+  Hugging Face cache stay owned by you. The cache is mounted at `/hf-cache` (`HF_HOME`), and `HOME=/tmp`
+  gives compile and JIT caches a writable place. With Compose, pass your IDs:
+  `UID=$(id -u) GID=$(id -g) docker compose --profile vllm up` (the default is 1000:1000).
+- If earlier root-run containers left root-owned files in the cache, engines log harmless "Permission
+  denied ... tree cache" warnings; fix ownership once with
+  `sudo chown -R "$(id -u):$(id -g)" ~/.cache/huggingface`.
 
 ## Running the gateway
 

@@ -3,6 +3,7 @@
 # The GGUF file is read from the shared Hugging Face cache; download it first, e.g.:
 #   uvx --from 'huggingface_hub[cli]' hf download ggml-org/Qwen3.8-27B-GGUF Qwen3.8-27B-Q8_0.gguf
 # The server listens on 0.0.0.0 inside the container; the host side is published on 127.0.0.1 only.
+# Runs as the calling user (not root); the model cache is mounted read-only.
 set -euo pipefail
 
 # Pinned by digest so results are reproducible; override LLAMACPP_IMAGE to try another build.
@@ -29,6 +30,8 @@ fi
 
 docker run -d --rm --name aie-local-llm-llamacpp \
   --gpus all \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
   -p "127.0.0.1:${LLAMACPP_PORT}:8080" \
   -v "${HF_HOME_DIR}:/hf:ro" \
   "${LLAMACPP_IMAGE}" \

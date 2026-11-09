@@ -2,6 +2,8 @@
 # Launch vLLM with LMCache-accelerated KV cache offload on this DGX Spark.
 # The pinned vLLM image already includes LMCache (lmcache 0.5.6 in vllm/vllm-openai:v0.32.0).
 # The port is published on 127.0.0.1 only (see "Running engines safely" in the README).
+# Runs as the calling user (not root), so files the engine writes to the shared Hugging Face
+# cache stay owned by you. HOME=/tmp gives compile and JIT caches a writable place.
 set -euo pipefail
 
 VLLM_LMCACHE_IMAGE=${VLLM_LMCACHE_IMAGE:-"vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34"}
@@ -25,7 +27,11 @@ fi
 docker run -d --rm --name aie-local-llm-vllm-lmcache \
   --gpus all --ipc=host \
   -p "127.0.0.1:${VLLM_PORT}:8000" \
-  -v "${HOME}/.cache/huggingface:/root/.cache/huggingface" \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
+  -e USER="$(id -un)" \
+  -e HF_HOME=/hf-cache \
+  -v "${HOME}/.cache/huggingface:/hf-cache" \
   -e HF_TOKEN \
   -e LMCACHE_CHUNK_SIZE=256 \
   -e LMCACHE_LOCAL_CPU=True \

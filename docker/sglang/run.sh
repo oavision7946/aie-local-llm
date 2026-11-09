@@ -1,6 +1,8 @@
 #!/bin/bash
 # Launch SGLang's OpenAI-compatible server on this DGX Spark.
 # The server listens on 0.0.0.0 inside the container; the host side is published on 127.0.0.1 only.
+# Runs as the calling user (not root), so files the engine writes to the shared Hugging Face
+# cache stay owned by you. HOME=/tmp gives compile and JIT caches a writable place.
 set -euo pipefail
 
 # Pinned by digest so results are reproducible; override SGLANG_IMAGE to try another build.
@@ -23,7 +25,11 @@ fi
 docker run -d --rm --name aie-local-llm-sglang \
   --gpus all --ipc=host \
   -p "127.0.0.1:${SGLANG_PORT}:30000" \
-  -v "${HOME}/.cache/huggingface:/root/.cache/huggingface" \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
+  -e USER="$(id -un)" \
+  -e HF_HOME=/hf-cache \
+  -v "${HOME}/.cache/huggingface:/hf-cache" \
   -e HF_TOKEN \
   "${SGLANG_IMAGE}" \
   python3 -m sglang.launch_server \

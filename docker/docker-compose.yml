@@ -1,16 +1,22 @@
 # Engine profiles. Every port is published on 127.0.0.1 only: Compose creates its own network,
 # where a mapping without a host address would publish on all interfaces.
+# Containers run as UID:GID (default 1000:1000) so files written to the Hugging Face cache stay
+# owned by you; pass your IDs with: UID=$(id -u) GID=$(id -g) docker compose --profile vllm up
 services:
   vllm:
     image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34}
     profiles: ["vllm"]
     command: ["${VLLM_MODEL:-Qwen/Qwen2.5-3B-Instruct}", "--dtype", "bfloat16", "--max-model-len", "${VLLM_MAX_MODEL_LEN:-4096}", "--gpu-memory-utilization", "${VLLM_GPU_MEMORY_UTILIZATION:-0.4}"]
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - HF_TOKEN
+      - HOME=/tmp
+      - USER=${USER:-user}
+      - HF_HOME=/hf-cache
     ports:
       - "127.0.0.1:${VLLM_PORT:-8000}:8000"
     volumes:
-      - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
+      - "${HOME}/.cache/huggingface:/hf-cache"
     ipc: host
     deploy:
       resources:
@@ -41,15 +47,19 @@ services:
       - "${VLLM_GPU_MEMORY_UTILIZATION:-0.4}"
       - "--kv-transfer-config"
       - '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - HF_TOKEN
+      - HOME=/tmp
+      - USER=${USER:-user}
+      - HF_HOME=/hf-cache
       - LMCACHE_CHUNK_SIZE=256
       - LMCACHE_LOCAL_CPU=True
       - LMCACHE_MAX_LOCAL_CPU_SIZE=${LMCACHE_MAX_LOCAL_CPU_SIZE:-20}
     ports:
       - "127.0.0.1:${VLLM_LMCACHE_PORT:-8001}:8000"
     volumes:
-      - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
+      - "${HOME}/.cache/huggingface:/hf-cache"
     ipc: host
     deploy:
       resources:
@@ -86,12 +96,16 @@ services:
       - "flashinfer"
       - "--mem-fraction-static"
       - "${SGLANG_MEM_FRACTION_STATIC:-0.4}"
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - HF_TOKEN
+      - HOME=/tmp
+      - USER=${USER:-user}
+      - HF_HOME=/hf-cache
     ports:
       - "127.0.0.1:${SGLANG_PORT:-30000}:30000"
     volumes:
-      - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
+      - "${HOME}/.cache/huggingface:/hf-cache"
     ipc: host
     deploy:
       resources:
