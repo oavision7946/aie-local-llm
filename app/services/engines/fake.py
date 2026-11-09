@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from typing import Any
 
 from app.services.engines.base import (
     ChatMessage,
@@ -28,7 +29,7 @@ class FakeEngine(Engine):
             return self._responses.pop(0)
         return "This is a fake response."
 
-    def chat(self, messages: list[ChatMessage], **params) -> ChatResult:
+    def chat(self, messages: list[ChatMessage], **params: Any) -> ChatResult:
         self.received_messages.append(messages)
         content = self._next_response()
         return ChatResult(
@@ -39,7 +40,7 @@ class FakeEngine(Engine):
         )
 
     def stream_chat(
-        self, messages: list[ChatMessage], **params
+        self, messages: list[ChatMessage], **params: Any
     ) -> Iterator[TextDelta | StreamEnd]:
         self.received_messages.append(messages)
         content = self._next_response()

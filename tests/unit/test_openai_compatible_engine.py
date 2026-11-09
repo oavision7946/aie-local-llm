@@ -1,23 +1,33 @@
 import json
+from collections.abc import Callable
 
 import httpx
 import openai
 import pytest
 
-from app.services.engines.base import ChatMessage
+from app.services.engines.base import ChatMessage, StreamEnd, TextDelta
 from app.services.engines.errors import EngineError, TransientEngineError
 from app.services.engines.openai_compatible import OpenAICompatibleEngine
 
+Handler = Callable[[httpx.Request], httpx.Response]
 
-def make_engine(handler) -> OpenAICompatibleEngine:
+
+def make_engine(handler: Handler) -> OpenAICompatibleEngine:
     http_client = httpx.Client(transport=httpx.MockTransport(handler))
-    client = openai.OpenAI(base_url="http://fake-engine/v1", api_key="x", http_client=http_client)
+    # openai's stubs type http_client against its own vendored httpx fork, which differs
+    # from the public httpx.Client we construct the mock transport with; functionally
+    # compatible at runtime (confirmed by every test below actually exercising it).
+    client = openai.OpenAI(
+        base_url="http://fake-engine/v1",
+        api_key="x",
+        http_client=http_client,  # type: ignore[arg-type]
+    )
     return OpenAICompatibleEngine(
         name="test", base_url="http://fake-engine/v1", model="m", client=client
     )
 
 
-def test_chat_returns_parsed_result():
+def test_chat_returns_parsed_result() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
@@ -42,10 +52,11 @@ def test_chat_returns_parsed_result():
 
     assert result.content == "hi there"
     assert result.finish_reason == "stop"
+    assert result.usage is not None
     assert result.usage.total_tokens == 7
 
 
-def test_chat_translates_5xx_to_transient_error():
+def test_chat_translates_5xx_to_transient_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": {"message": "overloaded"}})
 
@@ -54,7 +65,7 @@ def test_chat_translates_5xx_to_transient_error():
         engine.chat([ChatMessage(role="user", content="hello")])
 
 
-def test_chat_translates_4xx_to_engine_error():
+def test_chat_translates_4xx_to_engine_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(400, json={"error": {"message": "bad request"}})
 
@@ -63,7 +74,7 @@ def test_chat_translates_4xx_to_engine_error():
         engine.chat([ChatMessage(role="user", content="hello")])
 
 
-def test_stream_chat_yields_text_deltas_then_end():
+def test_stream_chat_yields_text_deltas_then_end() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         chunks = [
             {
@@ -84,8 +95,6 @@ def test_stream_chat_yields_text_deltas_then_end():
         sse = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse)
 
-    from app.services.engines.base import StreamEnd, TextDelta
-
     engine = make_engine(handler)
     events = list(engine.stream_chat([ChatMessage(role="user", content="hi")]))
 
@@ -95,7 +104,7 @@ def test_stream_chat_yields_text_deltas_then_end():
     assert ends[-1].finish_reason == "stop"
 
 
-def test_retries_transient_errors_then_succeeds():
+def test_retries_transient_errors_then_succeeds() -> None:
     attempts = {"count": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:

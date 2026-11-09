@@ -46,7 +46,7 @@ class UsageOut(BaseModel):
 class RetrievedSource(BaseModel):
     text: str
     score: float
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
 
 
 class ChatCompletionResponse(BaseModel):

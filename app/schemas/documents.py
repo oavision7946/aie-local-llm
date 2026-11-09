@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class DocumentIn(BaseModel):
     content: str = Field(min_length=1)
     corpus: str = "default"
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
 
 
 class DocumentOut(BaseModel):
@@ -18,7 +18,7 @@ class DocumentSummary(BaseModel):
     corpus: str
     chunk_id: str
     text: str
-    metadata: dict
+    metadata: dict[str, object]
 
 
 class DocumentList(BaseModel):

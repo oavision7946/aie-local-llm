@@ -1,7 +1,9 @@
 from collections.abc import Iterator
+from typing import Any, cast
 
 import httpx
 import openai
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessageParam
 
 from app.services.engines.base import (
     ChatMessage,
@@ -33,16 +35,24 @@ class OpenAICompatibleEngine(Engine):
         self.model = model
         self._client = client or openai.OpenAI(base_url=base_url, api_key=api_key)
 
-    def chat(self, messages: list[ChatMessage], **params) -> ChatResult:
+    def chat(self, messages: list[ChatMessage], **params: Any) -> ChatResult:
         return call_with_retry(lambda: self._chat_once(messages, **params))
 
-    def _chat_once(self, messages: list[ChatMessage], **params) -> ChatResult:
+    def _chat_once(self, messages: list[ChatMessage], **params: Any) -> ChatResult:
         try:
-            response = self._client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": m.role, "content": m.content} for m in messages],
-                stream=False,
-                **params,
+            # stream=False is a literal here, but combined with **params mypy can't resolve
+            # the overload precisely, so cast to the return type this call actually produces.
+            response = cast(
+                ChatCompletion,
+                self._client.chat.completions.create(
+                    model=self.model,
+                    messages=cast(
+                        list[ChatCompletionMessageParam],
+                        [{"role": m.role, "content": m.content} for m in messages],
+                    ),
+                    stream=False,
+                    **params,
+                ),
             )
         except Exception as exc:
             raise _translate_error(exc) from exc
@@ -63,14 +73,20 @@ class OpenAICompatibleEngine(Engine):
         )
 
     def stream_chat(
-        self, messages: list[ChatMessage], **params
+        self, messages: list[ChatMessage], **params: Any
     ) -> Iterator[TextDelta | StreamEnd]:
         try:
-            stream = self._client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": m.role, "content": m.content} for m in messages],
-                stream=True,
-                **params,
+            stream = cast(
+                Iterator[ChatCompletionChunk],
+                self._client.chat.completions.create(
+                    model=self.model,
+                    messages=cast(
+                        list[ChatCompletionMessageParam],
+                        [{"role": m.role, "content": m.content} for m in messages],
+                    ),
+                    stream=True,
+                    **params,
+                ),
             )
             model_name = self.model
             finish_reason = "stop"

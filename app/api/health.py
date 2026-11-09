@@ -8,8 +8,10 @@ from app.services.engines.registry import EngineRegistry
 router = APIRouter()
 
 
-@router.get("/health")
-def health(registry: EngineRegistry = Depends(get_engine_registry)):
+@router.get("/health", response_model=None)
+def health(
+    registry: EngineRegistry = Depends(get_engine_registry),
+) -> JSONResponse | dict[str, str]:
     try:
         engine = registry.active()
     except EngineError:

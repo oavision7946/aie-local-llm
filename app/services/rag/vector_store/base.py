@@ -8,7 +8,7 @@ class Chunk:
     text: str
     corpus: str
     doc_id: str
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
     chunk_id: str = field(default_factory=lambda: str(uuid4()))
     vector: list[float] | None = None
 

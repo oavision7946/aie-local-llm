@@ -33,10 +33,15 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import httpx
 from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionMessageFunctionToolCall,
+    ChatCompletionMessageParam,
+    ChatCompletionToolParam,
+)
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 DEFAULT_SEED = 1234
@@ -143,7 +148,12 @@ TOOL_PROMPT = (
     "'payments' over the last 30 minutes. Do not answer in text; only call the tools."
 )
 
-_PY_TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool}
+_PY_TYPES: dict[str, type | tuple[type, ...]] = {
+    "string": str,
+    "integer": int,
+    "number": (int, float),
+    "boolean": bool,
+}
 
 
 class EvidenceItem(BaseModel):
@@ -410,8 +420,10 @@ def measure_tools(client: OpenAI, cfg: BenchConfig) -> dict[str, Any]:
     try:
         resp = client.chat.completions.create(
             model=cfg.model,
-            messages=[{"role": "user", "content": TOOL_PROMPT}],
-            tools=TOOLS,
+            messages=cast(
+                list[ChatCompletionMessageParam], [{"role": "user", "content": TOOL_PROMPT}]
+            ),
+            tools=cast(list[ChatCompletionToolParam], TOOLS),
             tool_choice="auto",
             parallel_tool_calls=True,
             temperature=0,
@@ -422,7 +434,11 @@ def measure_tools(client: OpenAI, cfg: BenchConfig) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         return {"passed": False, "n_calls": 0, "problems": [f"request failed: {exc}"[:300]]}
     message = resp.choices[0].message
-    calls = [(c.function.name, c.function.arguments) for c in (message.tool_calls or [])]
+    calls = [
+        (c.function.name, c.function.arguments)
+        for c in (message.tool_calls or [])
+        if isinstance(c, ChatCompletionMessageFunctionToolCall)
+    ]
     result = grade_tool_calls(calls)
     if not calls and message.content:
         result["problems"].append(f"text instead of calls: {message.content[:160]!r}")

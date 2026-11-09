@@ -2,8 +2,9 @@ import time
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import Any
 
-from app.services.engines.base import ChatMessage, StreamEnd, TextDelta
+from app.services.engines.base import ChatMessage, StreamEnd, TextDelta, Usage
 from app.services.engines.registry import EngineRegistry
 from app.services.rag.service import RagService
 from app.services.rag.vector_store.base import ScoredChunk
@@ -14,7 +15,7 @@ class ChatOutcome:
     content: str
     model: str
     finish_reason: str
-    usage: object | None
+    usage: Usage | None
     sources: list[ScoredChunk] = field(default_factory=list)
 
 
@@ -63,7 +64,7 @@ class ChatService:
         rag_enabled: bool = False,
         rag_corpus: str | None = None,
         rag_top_k: int | None = None,
-        **params,
+        **params: Any,
     ) -> ChatOutcome:
         engine = self._registry.resolve(model)
         augmented, sources = self._augment_with_rag(
@@ -86,7 +87,7 @@ class ChatService:
         rag_enabled: bool = False,
         rag_corpus: str | None = None,
         rag_top_k: int | None = None,
-        **params,
+        **params: Any,
     ) -> Iterator[TextDelta | StreamEnd]:
         engine = self._registry.resolve(model)
         augmented, _sources = self._augment_with_rag(

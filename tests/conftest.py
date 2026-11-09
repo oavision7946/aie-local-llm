@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -52,9 +53,11 @@ def chat_service(fake_registry: EngineRegistry, rag_service: RagService) -> Chat
 
 @pytest.fixture
 def client(
-    fake_registry: EngineRegistry, rag_service: RagService, memory_vector_store: MemoryVectorStore,
+    fake_registry: EngineRegistry,
+    rag_service: RagService,
+    memory_vector_store: MemoryVectorStore,
     chat_service: ChatService,
-) -> TestClient:
+) -> Iterator[TestClient]:
     app.dependency_overrides[get_engine_registry] = lambda: fake_registry
     app.dependency_overrides[get_rag_service] = lambda: rag_service
     app.dependency_overrides[get_vector_store] = lambda: memory_vector_store

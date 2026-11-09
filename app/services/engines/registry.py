@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from app.core.settings import EnginesConfig
 from app.services.engines.base import Engine
 from app.services.engines.errors import EngineNotFoundError
@@ -5,7 +7,7 @@ from app.services.engines.openai_compatible import OpenAICompatibleEngine
 
 
 class EngineRegistry:
-    def __init__(self, engines: dict[str, Engine], active_name: str) -> None:
+    def __init__(self, engines: Mapping[str, Engine], active_name: str) -> None:
         self._engines = engines
         self._active_name = active_name
 

@@ -1,4 +1,10 @@
-def test_chat_completions_basic(client, fake_engine):
+from fastapi.testclient import TestClient
+
+from app.services.engines.fake import FakeEngine
+from app.services.rag.service import RagService
+
+
+def test_chat_completions_basic(client: TestClient, fake_engine: FakeEngine) -> None:
     fake_engine.script("hello back")
 
     response = client.post(
@@ -12,7 +18,9 @@ def test_chat_completions_basic(client, fake_engine):
     assert body["sources"] == []
 
 
-def test_chat_completions_with_rag_returns_sources(client, fake_engine, rag_service):
+def test_chat_completions_with_rag_returns_sources(
+    client: TestClient, fake_engine: FakeEngine, rag_service: RagService
+) -> None:
     fake_engine.script("answer using context")
     rag_service.ingest("The Eiffel Tower is in Paris.", corpus="default")
 
@@ -32,7 +40,7 @@ def test_chat_completions_with_rag_returns_sources(client, fake_engine, rag_serv
     assert "Eiffel" in body["sources"][0]["text"]
 
 
-def test_chat_completions_unknown_model_returns_502(client):
+def test_chat_completions_unknown_model_returns_502(client: TestClient) -> None:
     response = client.post(
         "/v1/chat/completions",
         json={"model": "does-not-exist", "messages": [{"role": "user", "content": "hi"}]},
@@ -40,12 +48,12 @@ def test_chat_completions_unknown_model_returns_502(client):
     assert response.status_code == 502
 
 
-def test_chat_completions_rejects_invalid_payload(client):
+def test_chat_completions_rejects_invalid_payload(client: TestClient) -> None:
     response = client.post("/v1/chat/completions", json={"model": "fake-model"})
     assert response.status_code == 422
 
 
-def test_chat_completions_stream_emits_sse(client, fake_engine):
+def test_chat_completions_stream_emits_sse(client: TestClient, fake_engine: FakeEngine) -> None:
     fake_engine.script("stream me")
 
     with client.stream(

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -43,9 +44,9 @@ class Engine(ABC):
     model: str
 
     @abstractmethod
-    def chat(self, messages: list[ChatMessage], **params) -> ChatResult: ...
+    def chat(self, messages: list[ChatMessage], **params: Any) -> ChatResult: ...
 
     @abstractmethod
     def stream_chat(
-        self, messages: list[ChatMessage], **params
+        self, messages: list[ChatMessage], **params: Any
     ) -> Iterator[TextDelta | StreamEnd]: ...

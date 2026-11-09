@@ -1,4 +1,9 @@
-def test_ingest_then_list_document(client):
+from fastapi.testclient import TestClient
+
+from app.services.engines.fake import FakeEngine
+
+
+def test_ingest_then_list_document(client: TestClient) -> None:
     response = client.post(
         "/documents", json={"content": "Some short fact.", "corpus": "testcorpus"}
     )
@@ -14,12 +19,12 @@ def test_ingest_then_list_document(client):
     assert docs[0]["doc_id"] == doc_id
 
 
-def test_ingest_empty_content_rejected(client):
+def test_ingest_empty_content_rejected(client: TestClient) -> None:
     response = client.post("/documents", json={"content": ""})
     assert response.status_code == 422
 
 
-def test_delete_document_removes_chunks(client):
+def test_delete_document_removes_chunks(client: TestClient) -> None:
     created = client.post("/documents", json={"content": "Delete me.", "corpus": "testcorpus"})
     doc_id = created.json()["doc_id"]
 
@@ -31,7 +36,9 @@ def test_delete_document_removes_chunks(client):
     assert listed.json()["documents"] == []
 
 
-def test_chat_with_rag_retrieves_ingested_document(client, fake_engine):
+def test_chat_with_rag_retrieves_ingested_document(
+    client: TestClient, fake_engine: FakeEngine
+) -> None:
     client.post(
         "/documents", json={"content": "Our refund policy is 30 days.", "corpus": "policies"}
     )

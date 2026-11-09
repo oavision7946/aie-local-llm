@@ -3,16 +3,16 @@ import pytest
 from app.services.rag.chunking import chunk_text
 
 
-def test_short_text_is_single_chunk():
+def test_short_text_is_single_chunk() -> None:
     chunks = chunk_text("hello world", chunk_size=100, chunk_overlap=10)
     assert chunks == ["hello world"]
 
 
-def test_empty_text_yields_no_chunks():
+def test_empty_text_yields_no_chunks() -> None:
     assert chunk_text("   ", chunk_size=100, chunk_overlap=10) == []
 
 
-def test_long_text_is_split_with_overlap():
+def test_long_text_is_split_with_overlap() -> None:
     text = "a" * 10 + " " + "b" * 10 + " " + "c" * 10
     chunks = chunk_text(text, chunk_size=15, chunk_overlap=5)
     assert len(chunks) > 1
@@ -20,7 +20,7 @@ def test_long_text_is_split_with_overlap():
     assert chunks[0][-5:] == chunks[1][:5]
 
 
-def test_covers_entire_text():
+def test_covers_entire_text() -> None:
     text = " ".join(f"word{i}" for i in range(100))
     normalized = " ".join(text.split())
     chunks = chunk_text(text, chunk_size=20, chunk_overlap=5)
@@ -28,6 +28,6 @@ def test_covers_entire_text():
 
 
 @pytest.mark.parametrize("chunk_size,chunk_overlap", [(0, 0), (-1, 0), (10, 10), (10, 20)])
-def test_invalid_sizes_raise(chunk_size, chunk_overlap):
+def test_invalid_sizes_raise(chunk_size: int, chunk_overlap: int) -> None:
     with pytest.raises(ValueError):
         chunk_text("some text", chunk_size=chunk_size, chunk_overlap=chunk_overlap)

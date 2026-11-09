@@ -1,3 +1,5 @@
+from typing import cast
+
 from app.services.rag.embeddings.base import Embedder
 
 
@@ -19,4 +21,4 @@ class SentenceTransformersEmbedder(Embedder):
         if not texts:
             return []
         vectors = self._model.encode(texts, normalize_embeddings=True)
-        return vectors.tolist()
+        return cast(list[list[float]], vectors.tolist())

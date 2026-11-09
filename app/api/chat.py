@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -18,8 +19,8 @@ from app.services.engines.base import ChatMessage, StreamEnd, TextDelta
 router = APIRouter()
 
 
-def _gen_params(request: ChatCompletionRequest) -> dict:
-    params = {}
+def _gen_params(request: ChatCompletionRequest) -> dict[str, float | int]:
+    params: dict[str, float | int] = {}
     if request.temperature is not None:
         params["temperature"] = request.temperature
     if request.max_tokens is not None:
@@ -30,7 +31,7 @@ def _gen_params(request: ChatCompletionRequest) -> dict:
 @router.post("/v1/chat/completions", response_model=None)
 def chat_completions(
     request: ChatCompletionRequest, chat_service: ChatService = Depends(get_chat_service)
-):
+) -> StreamingResponse | ChatCompletionResponse:
     messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
 
     if request.stream:
@@ -72,7 +73,9 @@ def chat_completions(
     )
 
 
-def _stream_response(chat_service: ChatService, request: ChatCompletionRequest, messages):
+def _stream_response(
+    chat_service: ChatService, request: ChatCompletionRequest, messages: list[ChatMessage]
+) -> Iterator[str]:
     completion_id = new_completion_id()
     created = now_epoch()
 

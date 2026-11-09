@@ -19,7 +19,9 @@ class RagService:
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
 
-    def ingest(self, content: str, *, corpus: str, metadata: dict | None = None) -> tuple[str, int]:
+    def ingest(
+        self, content: str, *, corpus: str, metadata: dict[str, object] | None = None
+    ) -> tuple[str, int]:
         doc_id = str(uuid4())
         texts = chunk_text(content, chunk_size=self._chunk_size, chunk_overlap=self._chunk_overlap)
         if not texts:
@@ -40,7 +42,7 @@ class RagService:
     def delete_document(self, doc_id: str) -> int:
         return self._vector_store.delete(doc_id)
 
-    def list_documents(self, corpus: str | None = None):
+    def list_documents(self, corpus: str | None = None) -> list[Chunk]:
         return self._vector_store.list_documents(corpus)
 
     @staticmethod

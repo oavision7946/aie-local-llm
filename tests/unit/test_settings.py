@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 import pytest
 
 from app.core.config import clear_config_cache
@@ -5,26 +7,26 @@ from app.core.settings import get_settings, reset_settings
 
 
 @pytest.fixture(autouse=True)
-def _reset():
+def _reset() -> Iterator[None]:
     reset_settings()
     yield
     reset_settings()
 
 
-def test_loads_real_config_files():
+def test_loads_real_config_files() -> None:
     settings = get_settings()
     assert settings.engines.active == "vllm"
     assert any(e.name == "vllm" for e in settings.engines.engines)
     assert settings.rag.chunking.chunk_size > settings.rag.chunking.chunk_overlap
 
 
-def test_active_engine_resolves():
+def test_active_engine_resolves() -> None:
     settings = get_settings()
     engine = settings.engines.active_engine()
     assert engine.name == settings.engines.active
 
 
-def test_get_settings_is_cached():
+def test_get_settings_is_cached() -> None:
     clear_config_cache()
     first = get_settings()
     second = get_settings()

@@ -57,9 +57,7 @@ if question:
         with st.chat_message("user"):
             st.markdown(question)
 
-        messages = [
-            {"role": m["role"], "content": m["content"]} for m in st.session_state.history
-        ]
+        messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.history]
         with st.chat_message("assistant"):
             try:
                 response = chat(

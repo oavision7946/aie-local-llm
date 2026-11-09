@@ -1,42 +1,44 @@
 import json
 import os
+from pathlib import Path
+from typing import Any
 
 import pytest
 
 from bench import serve_bench as sb
 
 
-def test_synthetic_lines_are_deterministic_per_seed():
+def test_synthetic_lines_are_deterministic_per_seed() -> None:
     assert sb.synthetic_log_lines(5, seed=7) == sb.synthetic_log_lines(5, seed=7)
     assert sb.synthetic_log_lines(5, seed=7) != sb.synthetic_log_lines(5, seed=8)
 
 
-def test_prefill_prompt_header_differs_per_seed():
+def test_prefill_prompt_header_differs_per_seed() -> None:
     # A unique first line keeps a server's prefix cache from reusing an earlier prompt.
     a = sb.build_prefill_prompt(3, seed=1).splitlines()[0]
     b = sb.build_prefill_prompt(3, seed=2).splitlines()[0]
     assert a != b
 
 
-def test_lines_for_tokens():
+def test_lines_for_tokens() -> None:
     assert sb.lines_for_tokens(1064, tokens_per_line=10.0) == 100
     assert sb.lines_for_tokens(10, tokens_per_line=10.0) == 1
     with pytest.raises(ValueError):
         sb.lines_for_tokens(100, tokens_per_line=0)
 
 
-def test_stream_result_rates_exclude_first_token():
+def test_stream_result_rates_exclude_first_token() -> None:
     r = sb.StreamResult(prompt_tokens=1000, completion_tokens=101, ttft_s=0.5, total_s=10.5)
     assert r.decode_tps == pytest.approx(10.0)
     assert r.prefill_tps == pytest.approx(2000.0)
 
 
-def test_stream_result_degenerate_cases_are_zero():
+def test_stream_result_degenerate_cases_are_zero() -> None:
     assert sb.StreamResult(10, 1, 0.1, 0.2).decode_tps == 0.0
     assert sb.StreamResult(10, 5, 0.0, 0.0).prefill_tps == 0.0
 
 
-def _call(name, **args):
+def _call(name: str, **args: Any) -> tuple[str, str]:
     return (name, json.dumps(args))
 
 
@@ -47,12 +49,12 @@ GOOD_CALLS = [
 ]
 
 
-def test_grade_tool_calls_pass():
+def test_grade_tool_calls_pass() -> None:
     result = sb.grade_tool_calls(GOOD_CALLS)
     assert result == {"passed": True, "n_calls": 3, "problems": []}
 
 
-def test_grade_tool_calls_missing_and_duplicate():
+def test_grade_tool_calls_missing_and_duplicate() -> None:
     result = sb.grade_tool_calls([GOOD_CALLS[1], GOOD_CALLS[1]])
     assert not result["passed"]
     assert any("missing calls" in p for p in result["problems"])
@@ -72,7 +74,7 @@ def test_grade_tool_calls_missing_and_duplicate():
         ("delete_all", "{}", "unknown tool"),
     ],
 )
-def test_check_tool_args_problems(name, raw, fragment):
+def test_check_tool_args_problems(name: str, raw: str, fragment: str) -> None:
     problems = sb.check_tool_args(name, raw)
     assert any(fragment in p for p in problems), problems
 
@@ -85,7 +87,7 @@ VALID_HYPOTHESIS = {
 }
 
 
-def test_grade_json_output_pass():
+def test_grade_json_output_pass() -> None:
     assert sb.grade_json_output(json.dumps(VALID_HYPOTHESIS)) == {"passed": True, "problems": []}
 
 
@@ -99,21 +101,21 @@ def test_grade_json_output_pass():
         {"extra": True},
     ],
 )
-def test_grade_json_output_rejects_schema_violations(mutation):
+def test_grade_json_output_rejects_schema_violations(mutation: dict[str, Any]) -> None:
     assert not sb.grade_json_output(json.dumps({**VALID_HYPOTHESIS, **mutation}))["passed"]
 
 
 @pytest.mark.parametrize("content", [None, "", "not json"])
-def test_grade_json_output_rejects_non_json(content):
+def test_grade_json_output_rejects_non_json(content: str | None) -> None:
     assert not sb.grade_json_output(content)["passed"]
 
 
-def test_schema_and_pydantic_model_agree_on_fields():
+def test_schema_and_pydantic_model_agree_on_fields() -> None:
     assert set(sb.HYPOTHESIS_SCHEMA["required"]) == set(sb.Hypothesis.model_fields)
 
 
-def test_csv_row_and_write_results(tmp_path):
-    result = {
+def test_csv_row_and_write_results(tmp_path: Path) -> None:
+    result: dict[str, Any] = {
         "label": "engine-x",
         "started_at": "2026-01-01T00:00:00",
         "max_model_len": 32768,
@@ -140,7 +142,7 @@ def test_csv_row_and_write_results(tmp_path):
     assert len(lines) == 3
 
 
-def test_evict_page_cache_counts_bytes(tmp_path):
+def test_evict_page_cache_counts_bytes(tmp_path: Path) -> None:
     (tmp_path / "a.bin").write_bytes(b"x" * 100)
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "b.bin").write_bytes(b"y" * 50)
@@ -149,7 +151,7 @@ def test_evict_page_cache_counts_bytes(tmp_path):
     assert sb.evict_page_cache([tmp_path]) == 150
 
 
-def test_evict_page_cache_counts_symlinked_files_once(tmp_path):
+def test_evict_page_cache_counts_symlinked_files_once(tmp_path: Path) -> None:
     if not hasattr(os, "posix_fadvise"):
         pytest.skip("posix_fadvise not available on this platform")
     (tmp_path / "blob").write_bytes(b"z" * 40)
@@ -157,12 +159,12 @@ def test_evict_page_cache_counts_symlinked_files_once(tmp_path):
     assert sb.evict_page_cache([tmp_path]) == 40
 
 
-def test_cli_rejects_unknown_tests():
+def test_cli_rejects_unknown_tests() -> None:
     with pytest.raises(SystemExit):
         sb.main(["run", "--base-url", "http://x", "--model", "m", "--label", "l", "--tests", "x"])
 
 
-def test_evict_page_cache_skips_unreadable_files(tmp_path):
+def test_evict_page_cache_skips_unreadable_files(tmp_path: Path) -> None:
     if not hasattr(os, "posix_fadvise") or os.geteuid() == 0:
         pytest.skip("needs posix_fadvise and a non-root user")
     (tmp_path / "ok").write_bytes(b"a" * 10)

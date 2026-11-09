@@ -23,6 +23,8 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.6",
+    "mypy>=1.11",
+    "types-pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +50,18 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B"]
 # B008: FastAPI's Depends() is designed to be used as a default argument value.
 ignore = ["B008"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+# ui/ is a Streamlit script relying on sibling-module imports resolved by Streamlit's own
+# sys.path handling at runtime, not a package; its module name would collide with app/ under mypy.
+exclude = ["^\\.venv/", "^\\.internal/", "^ui/"]
+
+[[tool.mypy.overrides]]
+# Third-party stubs aren't available for these; type-check the rest of the project strictly.
+module = ["sentence_transformers.*"]
+ignore_missing_imports = true
 
 [tool.uv]
 torch-backend = "auto"

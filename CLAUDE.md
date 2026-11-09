@@ -19,6 +19,7 @@ uv sync                                   # install dependencies
 uv run pytest tests/unit                  # unit tests
 uv run pytest tests/contract              # API contract tests (separate suite)
 uv run ruff check . && uv run ruff format --check .   # lint and format check
+uv run mypy .                                         # static types (strict; see [tool.mypy])
 uv run uvicorn app.main:app --port <port>             # gateway (binds 127.0.0.1 by default)
 uv run streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8502
 bash docker/vllm/run.sh                   # or docker/sglang/run.sh, docker/vllm-lmcache/run.sh
@@ -29,7 +30,7 @@ Contract (API) tests live apart from unit tests and are run separately. Tests mu
 
 ## Conventions
 
-- Every change ships with tests, passes lint, and updates docs (`README.md`, `docs/`) when behavior or commands change.
+- Every change ships with tests, passes lint and type checks, and updates docs (`README.md`, `docs/`) when behavior or commands change.
 - Validate all API inputs and outputs with Pydantic models; keep the gateway OpenAI-compatible (extra fields such as `rag` must stay optional).
 - Configuration lives in YAML in `config/`; ports and memory settings are configurable through environment variables or config, never fixed in code.
 - Secrets (for example `HF_TOKEN`) live in `.env` files or the shell environment and are never committed, printed, or written to other files. Keep a `.env.example` with placeholder values only.
@@ -54,7 +55,7 @@ This repository is public. Treat everything you write into it as published.
 
 - Do not put any of the following in tracked files (code, comments, docstrings, docs, README, test fixtures, commit messages, PR or issue text): roadmap or unreleased plans, customer names or data, employer names, internal design rationale, or details of other private projects that use this service.
 - Test data and benchmark prompts must be synthetic. Never commit real logs, traces, or documents from a customer or employer.
-- `.internal/`, `CLAUDE.local.md` and `ProjectPrompts.md` are gitignored. Never stage them, never use `git add -f` on them, and never remove their ignore rules.
+- `.internal/`, `CLAUDE.local.md` and `prompts.md` are gitignored. Never stage them, never use `git add -f` on them, and never remove their ignore rules.
 - Write comments and docs in generic technical terms: what the code does and how to use it.
 - If you need planning context and `CLAUDE.local.md` is not present, ask the user rather than guessing.
 

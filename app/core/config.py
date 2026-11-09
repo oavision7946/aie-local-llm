@@ -13,7 +13,7 @@ def config_dir() -> Path:
 
 
 @lru_cache
-def load_yaml(name: str) -> dict:
+def load_yaml(name: str) -> dict[str, object]:
     path = config_dir() / f"{name}.yaml"
     with path.open() as f:
         return yaml.safe_load(f) or {}
