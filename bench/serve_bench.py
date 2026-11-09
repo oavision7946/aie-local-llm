@@ -303,6 +303,10 @@ class BenchConfig:
     label: str
     seed: int = DEFAULT_SEED
     thinking: bool = False
+    # tools/json requests budget this many tokens when thinking is on, since the model spends
+    # part of it on the <think> block before any tool call or JSON content. 4096 was not always
+    # enough (observed: finish_reason=length with truncated JSON); see docs/benchmarking.md.
+    thinking_max_tokens: int = 8192
     decode_tokens: int = 256
     repeats: int = 3
     concurrency: int = 2
@@ -428,7 +432,7 @@ def measure_tools(client: OpenAI, cfg: BenchConfig) -> dict[str, Any]:
             parallel_tool_calls=True,
             temperature=0,
             seed=cfg.seed,
-            max_tokens=4096 if cfg.thinking else 1024,
+            max_tokens=cfg.thinking_max_tokens if cfg.thinking else 1024,
             extra_body=_extra_body(cfg),
         )
     except Exception as exc:  # noqa: BLE001
@@ -465,7 +469,7 @@ def measure_json(client: OpenAI, cfg: BenchConfig) -> dict[str, Any]:
                 },
                 temperature=0,
                 seed=cfg.seed,
-                max_tokens=4096 if cfg.thinking else 1024,
+                max_tokens=cfg.thinking_max_tokens if cfg.thinking else 1024,
                 extra_body=_extra_body(cfg),
             )
             graded = grade_json_output(resp.choices[0].message.content)
@@ -482,8 +486,30 @@ def measure_json(client: OpenAI, cfg: BenchConfig) -> dict[str, Any]:
     }
 
 
+def read_psi_memory(path: Path = Path("/proc/pressure/memory")) -> dict[str, float] | None:
+    """Memory pressure (``path``): share of time stalled on memory, last 10s/60s/300s.
+
+    Linux-only and absent in some containers/kernels; callers must tolerate ``None``.
+    """
+    try:
+        text = path.read_text()
+    except OSError:
+        return None
+    psi: dict[str, float] = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        kind = parts[0]
+        for field_str in parts[1:]:
+            key, _, value = field_str.partition("=")
+            if key in ("avg10", "avg60", "avg300"):
+                psi[f"{kind}_{key}"] = float(value)
+    return psi or None
+
+
 def memory_snapshot(container: str | None) -> dict[str, Any]:
-    """Host memory (``free -m``) and, optionally, one container's ``docker stats`` usage."""
+    """Host memory (``free -m``), memory pressure (PSI), and optionally a container's usage."""
     snap: dict[str, Any] = {}
     try:
         mem = subprocess.run(["free", "-m"], capture_output=True, text=True, check=True).stdout
@@ -492,6 +518,9 @@ def memory_snapshot(container: str | None) -> dict[str, Any]:
         snap["host_available_mib"] = int(fields[6])
     except (OSError, subprocess.CalledProcessError, IndexError, ValueError):
         pass
+    psi = read_psi_memory()
+    if psi:
+        snap["psi_memory"] = psi
     if container:
         try:
             out = subprocess.run(
@@ -558,6 +587,8 @@ CSV_FIELDS = [
     "tools",
     "json",
     "host_used_mib",
+    "host_available_mib",
+    "psi_some_avg10",
     "container_mem",
 ]
 
@@ -588,6 +619,8 @@ def csv_row(result: dict[str, Any]) -> dict[str, Any]:
         "tools": {True: "pass", False: "fail"}.get(get("tools", "passed"), ""),
         "json": get("json", "pass_rate"),
         "host_used_mib": result["memory_before"].get("host_used_mib", ""),
+        "host_available_mib": result["memory_before"].get("host_available_mib", ""),
+        "psi_some_avg10": result["memory_before"].get("psi_memory", {}).get("some_avg10", ""),
         "container_mem": result["memory_before"].get("container_mem", ""),
     }
 
@@ -675,6 +708,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--tests", default=",".join(ALL_TESTS))
     run.add_argument("--seed", type=int, default=DEFAULT_SEED)
     run.add_argument("--thinking", action="store_true", help="enable the model's thinking mode")
+    run.add_argument(
+        "--thinking-max-tokens",
+        type=int,
+        default=BenchConfig.thinking_max_tokens,
+        help="max_tokens for tools/json requests when --thinking is set",
+    )
     run.add_argument("--decode-tokens", type=int, default=256)
     run.add_argument("--repeats", type=int, default=3)
     run.add_argument("--concurrency", type=int, default=2)
@@ -704,6 +743,7 @@ def main(argv: list[str] | None = None) -> int:
         label=args.label,
         seed=args.seed,
         thinking=args.thinking,
+        thinking_max_tokens=args.thinking_max_tokens,
         decode_tokens=args.decode_tokens,
         repeats=args.repeats,
         concurrency=args.concurrency,

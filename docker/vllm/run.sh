@@ -15,6 +15,14 @@ VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4096}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.4}
 # Extra flags appended as-is, e.g. VLLM_EXTRA_ARGS="--quantization modelopt_fp4" for an NVFP4 checkpoint.
 VLLM_EXTRA_ARGS=${VLLM_EXTRA_ARGS:-}
+# Multi-token prediction: off by default. Set to a token count (e.g. 3, vLLM's own recommended
+# default for Qwen3.8) to enable; roughly doubled decode throughput in testing, at the cost of
+# context (needs max-num-seqs capped well under the model's linear-attention state-cache limit,
+# e.g. via VLLM_EXTRA_ARGS="--max-num-seqs 8") — see docs/benchmarking.md.
+VLLM_MTP_TOKENS=${VLLM_MTP_TOKENS:-}
+if [ -n "${VLLM_MTP_TOKENS}" ]; then
+  VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS} --speculative-config {\"method\":\"mtp\",\"num_speculative_tokens\":${VLLM_MTP_TOKENS}}"
+fi
 
 if [ -z "${HF_TOKEN:-}" ]; then
   echo "Warning: HF_TOKEN is not set — Hugging Face downloads will be unauthenticated" \

@@ -1,11 +1,46 @@
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import httpx
+import openai
 import pytest
 
 from bench import serve_bench as sb
+
+Handler = Callable[[httpx.Request], httpx.Response]
+
+
+def make_openai_client(handler: Handler) -> openai.OpenAI:
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    # see the matching comment in tests/unit/test_openai_compatible_engine.py
+    return openai.OpenAI(
+        base_url="http://fake-engine/v1",
+        api_key="x",
+        http_client=http_client,  # type: ignore[arg-type]
+    )
+
+
+def chat_completion_response(content: str, finish_reason: str = "stop") -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "m",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": finish_reason,
+                }
+            ],
+            "usage": None,
+        },
+    )
 
 
 def test_synthetic_lines_are_deterministic_per_seed() -> None:
@@ -119,7 +154,11 @@ def test_csv_row_and_write_results(tmp_path: Path) -> None:
         "label": "engine-x",
         "started_at": "2026-01-01T00:00:00",
         "max_model_len": 32768,
-        "memory_before": {"host_used_mib": 1000},
+        "memory_before": {
+            "host_used_mib": 1000,
+            "host_available_mib": 50000,
+            "psi_memory": {"some_avg10": 1.5},
+        },
         "decode": {"decode_tps_median": 12.5},
         "concurrency": {"per_stream_decode_tps_mean": 10.0, "aggregate_tps": 19.0},
         "prefill": [
@@ -133,6 +172,8 @@ def test_csv_row_and_write_results(tmp_path: Path) -> None:
     assert row["decode_tps"] == 12.5
     assert row["tools"] == "pass"
     assert row["prefill"] == "8100tok: 4.0s (2025.0 tok/s); 32768tok: error"
+    assert row["host_available_mib"] == 50000
+    assert row["psi_some_avg10"] == 1.5
 
     sb.write_results(result, tmp_path)
     sb.write_results({**result, "label": "engine-y"}, tmp_path)
@@ -140,6 +181,39 @@ def test_csv_row_and_write_results(tmp_path: Path) -> None:
     lines = (tmp_path / "results.csv").read_text().splitlines()
     assert lines[0].startswith("label,")
     assert len(lines) == 3
+
+
+def test_read_psi_memory_parses_avg_fields(tmp_path: Path) -> None:
+    psi_file = tmp_path / "memory"
+    psi_file.write_text(
+        "some avg10=1.50 avg60=2.25 avg300=0.00 total=304\n"
+        "full avg10=0.00 avg60=0.10 avg300=0.00 total=299\n"
+    )
+
+    assert sb.read_psi_memory(psi_file) == {
+        "some_avg10": 1.5,
+        "some_avg60": 2.25,
+        "some_avg300": 0.0,
+        "full_avg10": 0.0,
+        "full_avg60": 0.1,
+        "full_avg300": 0.0,
+    }
+
+
+def test_read_psi_memory_missing_file_returns_none(tmp_path: Path) -> None:
+    assert sb.read_psi_memory(tmp_path / "does-not-exist") is None
+
+
+def test_memory_snapshot_includes_psi_when_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sb, "read_psi_memory", lambda: {"some_avg10": 3.0})
+    snap = sb.memory_snapshot(container=None)
+    assert snap["psi_memory"] == {"some_avg10": 3.0}
+
+
+def test_memory_snapshot_omits_psi_when_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sb, "read_psi_memory", lambda: None)
+    snap = sb.memory_snapshot(container=None)
+    assert "psi_memory" not in snap
 
 
 def test_evict_page_cache_counts_bytes(tmp_path: Path) -> None:
@@ -162,6 +236,75 @@ def test_evict_page_cache_counts_symlinked_files_once(tmp_path: Path) -> None:
 def test_cli_rejects_unknown_tests() -> None:
     with pytest.raises(SystemExit):
         sb.main(["run", "--base-url", "http://x", "--model", "m", "--label", "l", "--tests", "x"])
+
+
+def test_cli_thinking_max_tokens_default_and_override() -> None:
+    default_args = sb.build_parser().parse_args(
+        ["run", "--base-url", "http://x", "--model", "m", "--label", "l"]
+    )
+    assert default_args.thinking_max_tokens == sb.BenchConfig.thinking_max_tokens
+
+    overridden = sb.build_parser().parse_args(
+        [
+            "run",
+            "--base-url",
+            "http://x",
+            "--model",
+            "m",
+            "--label",
+            "l",
+            "--thinking-max-tokens",
+            "12345",
+        ]
+    )
+    assert overridden.thinking_max_tokens == 12345
+
+
+def _make_cfg(**overrides: Any) -> sb.BenchConfig:
+    base = {"base_url": "http://fake-engine/v1", "model": "m", "label": "t", "json_trials": 1}
+    return sb.BenchConfig(**{**base, **overrides})
+
+
+def test_measure_json_uses_thinking_max_tokens_when_thinking_enabled() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["max_tokens"] = json.loads(request.content)["max_tokens"]
+        return chat_completion_response("not valid json", finish_reason="length")
+
+    client = make_openai_client(handler)
+    cfg = _make_cfg(thinking=True, thinking_max_tokens=12345)
+    sb.measure_json(client, cfg)
+
+    assert captured["max_tokens"] == 12345
+
+
+def test_measure_json_uses_fixed_budget_when_thinking_disabled() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["max_tokens"] = json.loads(request.content)["max_tokens"]
+        return chat_completion_response("not valid json")
+
+    client = make_openai_client(handler)
+    cfg = _make_cfg(thinking=False, thinking_max_tokens=12345)
+    sb.measure_json(client, cfg)
+
+    assert captured["max_tokens"] == 1024
+
+
+def test_measure_tools_uses_thinking_max_tokens_when_thinking_enabled() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["max_tokens"] = json.loads(request.content)["max_tokens"]
+        return chat_completion_response("no tool calls")
+
+    client = make_openai_client(handler)
+    cfg = _make_cfg(thinking=True, thinking_max_tokens=12345)
+    sb.measure_tools(client, cfg)
+
+    assert captured["max_tokens"] == 12345
 
 
 def test_evict_page_cache_skips_unreadable_files(tmp_path: Path) -> None:

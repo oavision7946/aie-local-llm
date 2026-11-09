@@ -1,0 +1,43 @@
+{
+  "label": "vllm-0.32.0-nvfp4-thinking-fixed",
+  "config": {
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "nvidia/Qwen3.8-27B-NVFP4",
+    "label": "vllm-0.32.0-nvfp4-thinking-fixed",
+    "seed": 1234,
+    "thinking": true,
+    "thinking_max_tokens": 8192,
+    "decode_tokens": 256,
+    "repeats": 3,
+    "concurrency": 2,
+    "prefill_lengths": [
+      8192,
+      32768
+    ],
+    "json_trials": 3,
+    "timeout_s": 1800.0
+  },
+  "started_at": "2026-11-09T11:03:28-0800",
+  "max_model_len": 262144,
+  "memory_before": {
+    "host_used_mib": 53882,
+    "host_available_mib": 70724,
+    "container_mem": "8.318GiB / 121.7GiB"
+  },
+  "tools": {
+    "passed": true,
+    "n_calls": 3,
+    "problems": [],
+    "latency_s": 20.3
+  },
+  "json": {
+    "passed": true,
+    "pass_rate": "3/3",
+    "problems": []
+  },
+  "memory_after": {
+    "host_used_mib": 54209,
+    "host_available_mib": 70398,
+    "container_mem": "8.442GiB / 121.7GiB"
+  }
+}
