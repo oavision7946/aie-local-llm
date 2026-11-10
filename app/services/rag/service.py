@@ -36,7 +36,7 @@ class RagService:
         return doc_id, len(chunks)
 
     def retrieve(self, query: str, *, corpus: str, top_k: int) -> list[ScoredChunk]:
-        (query_vector,) = self._embedder.embed([query])
+        query_vector = self._embedder.embed_query(query)
         return self._vector_store.query(query_vector, corpus=corpus, top_k=top_k)
 
     def delete_document(self, doc_id: str) -> int:

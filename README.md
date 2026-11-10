@@ -13,6 +13,8 @@ New to this box? Start with the tutorials:
 - [Tutorial 2: Run an LLM + an embedding model](docs/tutorial-2-llm-and-embeddings.md) — add
   `nvidia/Nemotron-3-Embed-8B-BF16` alongside `Qwen/Qwen3.8-27B` so RAG retrieval uses a real
   retrieval-tuned embedder, including how to budget GPU memory across both models.
+- [Tutorial 3: Configure an embedding model](docs/tutorial-3-embedding-models.md) — verified configs for
+  Qwen3-Embedding, BGE-M3, EmbeddingGemma and others, with prompt-prefix and `trust_remote_code` handling.
 
 ## Why OpenAI-compatible?
 
@@ -59,16 +61,55 @@ faster downloads, required for gated models):
 export HF_TOKEN=hf_xxx  # https://huggingface.co/docs/hub/en/security-tokens
 ```
 
-Each script pulls/launches its container and prints a readiness check. They default to the already-cached
-`Qwen/Qwen2.5-3B-Instruct` model; override with `VLLM_MODEL`/`SGLANG_MODEL` env vars.
+Each script pulls/launches its container and prints a readiness check. vLLM, vLLM+LMCache and SGLang
+default to the already-cached `Qwen/Qwen2.5-3B-Instruct` model; override with `VLLM_MODEL`/`SGLANG_MODEL`.
+Each example below runs the engine, polls its own stated health check until it answers, confirms the
+port is loopback-only, then stops it — copy-paste one at a time (`docker/stop.sh` is safe to call even if
+nothing is running, so you don't need to track what's up before moving to the next engine).
+
+**vLLM** (`127.0.0.1:8000`):
 
 ```bash
-bash docker/vllm/run.sh           # 127.0.0.1:8000
-bash docker/vllm-lmcache/run.sh   # 127.0.0.1:8001, vLLM with the LMCache connector
-bash docker/sglang/run.sh         # 127.0.0.1:30000
-bash docker/llamacpp/run.sh       # 127.0.0.1:8002, llama.cpp server for GGUF files
+bash docker/vllm/run.sh
+until curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health | grep -q 200; do sleep 3; done
+docker ps --format '{{.Names}} {{.Ports}}'   # confirm 127.0.0.1:8000, not 0.0.0.0
+curl http://127.0.0.1:8000/v1/models
+bash docker/stop.sh
+```
 
-bash docker/stop.sh               # stop whichever is running
+**vLLM + LMCache** (`127.0.0.1:8001`) — same image, with the LMCache KV-cache connector enabled:
+
+```bash
+bash docker/vllm-lmcache/run.sh
+until curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/health | grep -q 200; do sleep 3; done
+docker ps --format '{{.Names}} {{.Ports}}'   # confirm 127.0.0.1:8001, not 0.0.0.0
+curl http://127.0.0.1:8001/v1/models
+bash docker/stop.sh
+```
+
+**SGLang** (`127.0.0.1:30000`):
+
+```bash
+bash docker/sglang/run.sh
+until curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:30000/health | grep -q 200; do sleep 3; done
+docker ps --format '{{.Names}} {{.Ports}}'   # confirm 127.0.0.1:30000, not 0.0.0.0
+curl http://127.0.0.1:30000/v1/models
+bash docker/stop.sh
+```
+
+**llama.cpp** (`127.0.0.1:8002`) — serves a GGUF file instead of a Hugging Face model id, so download one
+first (a small model keeps this quick; swap in whatever `LLAMACPP_HF_REPO`/`LLAMACPP_HF_FILE` you actually
+want to run):
+
+```bash
+uvx --from 'huggingface_hub[cli]' hf download Qwen/Qwen2.5-3B-Instruct-GGUF qwen2.5-3b-instruct-q4_k_m.gguf
+
+LLAMACPP_HF_REPO=Qwen/Qwen2.5-3B-Instruct-GGUF LLAMACPP_HF_FILE=qwen2.5-3b-instruct-q4_k_m.gguf \
+  bash docker/llamacpp/run.sh
+until curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8002/health | grep -q 200; do sleep 3; done
+docker ps --format '{{.Names}} {{.Ports}}'   # confirm 127.0.0.1:8002, not 0.0.0.0
+curl http://127.0.0.1:8002/v1/models
+bash docker/stop.sh
 ```
 
 Or via Compose profiles:

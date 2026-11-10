@@ -33,6 +33,11 @@ class EnginesConfig(_Strict):
 class EmbeddingsConfig(_Strict):
     model: str
     device: str = "cpu"
+    trust_remote_code: bool = False
+    query_prompt: str | None = None
+    document_prompt: str | None = None
+    truncate_dim: int | None = None
+    dtype: str | None = None
 
 
 class ChunkingConfig(_Strict):

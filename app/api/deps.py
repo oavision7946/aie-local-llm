@@ -20,8 +20,16 @@ def get_embedder() -> Embedder:
         SentenceTransformersEmbedder,
     )
 
-    embeddings_config = get_settings().rag.embeddings
-    return SentenceTransformersEmbedder(embeddings_config.model, device=embeddings_config.device)
+    cfg = get_settings().rag.embeddings
+    return SentenceTransformersEmbedder(
+        cfg.model,
+        device=cfg.device,
+        trust_remote_code=cfg.trust_remote_code,
+        query_prompt=cfg.query_prompt,
+        document_prompt=cfg.document_prompt,
+        truncate_dim=cfg.truncate_dim,
+        dtype=cfg.dtype,
+    )
 
 
 @lru_cache
